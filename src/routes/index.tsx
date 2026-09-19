@@ -95,7 +95,7 @@ const demoStages = [
   { state: "listening", duration: 7000 },
   { state: "thinking", duration: 6500 },
   { state: "reveal", duration: 7000 },
-  { state: "pouring", duration: 13500 },
+  { state: "pouring", duration: 9000 },
   { state: "serving", duration: 8000 },
 ] as const;
 
@@ -370,20 +370,20 @@ function PouringState({ machine, now }: { machine: MachineState; now: number }) 
     : 1;
   const currentMl = machine.pour ? Math.round(machine.pour.ml * currentProgress) : 0;
   const pours = machine.recipe?.pours ?? recipe.pours;
-  const stirring = machine.pour === null;
+  const pouringComplete = machine.pour === null;
 
   return (
     <section className="pour-layout">
       <header>
-        <p>{stirring ? "FINISHING YOUR DRINK" : `POUR ${activeIndex + 1} OF ${pours.length}`}</p>
-        <h1>{stirring ? "Stirring…" : machine.ingredients[String(machine.pour?.channel)]}</h1>
-        <strong>{stirring ? `${machine.recipe?.stir_seconds ?? recipe.stir_seconds} seconds` : `${currentMl} / ${machine.pour?.ml ?? 0} ml`}</strong>
+        <p>{pouringComplete ? "ALL POURS COMPLETE" : `POUR ${activeIndex + 1} OF ${pours.length}`}</p>
+        <h1>{pouringComplete ? "Drink complete" : machine.ingredients[String(machine.pour?.channel)]}</h1>
+        {!pouringComplete && <strong>{currentMl} / {machine.pour?.ml ?? 0} ml</strong>}
       </header>
       <div className="pour-bars">
         {pours.map((pour, index) => {
           const fill = index < activeIndex ? 1 : index === activeIndex ? currentProgress : 0;
           return (
-            <div className={`pour-item ${index === activeIndex && !stirring ? "active" : ""}`} key={`${pour.channel}-${index}`}>
+            <div className={`pour-item ${index === activeIndex && !pouringComplete ? "active" : ""}`} key={`${pour.channel}-${index}`}>
               <div className="pour-vessel"><i style={{ height: `${fill * 100}%` }} /></div>
               <span>{machine.ingredients[String(pour.channel)]}</span>
               <strong>{pour.ml} ml</strong>
@@ -391,7 +391,6 @@ function PouringState({ machine, now }: { machine: MachineState; now: number }) 
           );
         })}
       </div>
-      {stirring && <div className="stir-icon" aria-hidden="true"><span /></div>}
     </section>
   );
 }
