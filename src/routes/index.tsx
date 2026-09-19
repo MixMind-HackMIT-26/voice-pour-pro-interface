@@ -250,7 +250,7 @@ function MixMindKiosk() {
   return (
     <main className="kiosk-shell" aria-live="polite">
       <div className="kiosk-topline">
-        <Logo compact={machine.state !== "idle"} />
+        {machine.state !== "idle" && <Logo compact />}
         {isDemo && <span className="demo-tag">DEMO</span>}
       </div>
       <div className="state-stage" key={machine.state}>
