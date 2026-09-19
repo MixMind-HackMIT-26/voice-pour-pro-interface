@@ -117,7 +117,7 @@ export const Route = createFileRoute("/")({
 
 function getDemoState(epoch: number, now: number): MachineState {
   let cursor = (now - epoch) % demoCycleDuration;
-  let current = demoStages[0];
+  let current: { state: MachineStateName; duration: number } = demoStages[0];
   let stageStart = epoch;
 
   for (const stage of demoStages) {
@@ -155,6 +155,7 @@ function getDemoState(epoch: number, now: number): MachineState {
     return { ...baseState, state: "pouring", features, recipe, pour: null };
   }
   const activePour = recipe.pours[pourIndex];
+  if (!activePour) return { ...baseState, state: "pouring", features, recipe, pour: null };
   return {
     ...baseState,
     state: "pouring",
@@ -184,10 +185,11 @@ function MixMindKiosk() {
   }, []);
 
   useEffect(() => {
-    if (isDemo) {
-      setMachine(getDemoState(demoEpoch.current, now));
-      return;
-    }
+    if (isDemo) setMachine(getDemoState(demoEpoch.current, now));
+  }, [isDemo, now]);
+
+  useEffect(() => {
+    if (isDemo) return;
 
     let cancelled = false;
     const poll = async () => {
@@ -209,7 +211,7 @@ function MixMindKiosk() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [isDemo, now]);
+  }, [isDemo]);
 
   const start = useCallback(async () => {
     if (isDemo) {
