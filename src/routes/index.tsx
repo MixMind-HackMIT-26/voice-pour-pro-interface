@@ -116,7 +116,8 @@ export const Route = createFileRoute("/")({
 });
 
 function getDemoState(epoch: number, now: number): MachineState {
-  let cursor = (now - epoch) % demoCycleDuration;
+  let cursor = now - epoch;
+  if (cursor < 0 || cursor >= demoCycleDuration) return baseState;
   let current: { state: MachineStateName; duration: number } = demoStages[0];
   let stageStart = epoch;
 
@@ -174,6 +175,7 @@ function getDemoState(epoch: number, now: number): MachineState {
 
 function MixMindKiosk() {
   const [isDemo, setIsDemo] = useState(false);
+  const [demoRunning, setDemoRunning] = useState(false);
   const [machine, setMachine] = useState<MachineState>(baseState);
   const [now, setNow] = useState(Date.now());
   const demoEpoch = useRef(Date.now());
@@ -191,8 +193,15 @@ function MixMindKiosk() {
   }, []);
 
   useEffect(() => {
-    if (isDemo) setMachine(getDemoState(demoEpoch.current, now));
-  }, [isDemo, now]);
+    if (!isDemo) return;
+    if (!demoRunning) {
+      setMachine(baseState);
+      return;
+    }
+    const nextState = getDemoState(demoEpoch.current, now);
+    setMachine(nextState);
+    if (now - demoEpoch.current >= demoCycleDuration) setDemoRunning(false);
+  }, [demoRunning, isDemo, now]);
 
   useEffect(() => {
     if (isDemo) return;
@@ -222,6 +231,7 @@ function MixMindKiosk() {
   const start = useCallback(async () => {
     if (isDemo) {
       demoEpoch.current = Date.now() - demoStages[0].duration;
+      setDemoRunning(true);
       setNow(Date.now());
       return;
     }
@@ -230,12 +240,14 @@ function MixMindKiosk() {
     } catch {
       demoEpoch.current = Date.now() - demoStages[0].duration;
       setIsDemo(true);
+      setDemoRunning(true);
     }
   }, [isDemo]);
 
   const reset = useCallback(async () => {
     if (isDemo) {
       demoEpoch.current = Date.now();
+      setDemoRunning(false);
       setNow(Date.now());
       return;
     }
@@ -282,12 +294,39 @@ function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
+type BartenderMood = "ready" | "listening" | "thinking" | "pleased" | "focused" | "celebrating" | "concerned";
+
+function BartenderFace({ mood, size = "large" }: { mood: BartenderMood; size?: "small" | "medium" | "large" }) {
+  return (
+    <div className={`bartender-face bartender-${mood} bartender-${size}`} aria-hidden="true">
+      <svg viewBox="0 0 240 240" fill="none">
+        <circle className="aura aura-outer" cx="120" cy="120" r="108" />
+        <circle className="aura aura-inner" cx="120" cy="120" r="94" />
+        <path className="shoulders" d="M46 226c13-36 39-52 74-52s61 16 74 52" />
+        <path className="jacket" d="m86 181 34 31 34-31M120 212v14" />
+        <path className="face-line" d="M70 61c11-25 31-38 50-38s39 13 50 38v56c0 42-23 72-50 72s-50-30-50-72V61Z" />
+        <path className="hair" d="M70 71c2-34 24-52 50-52 27 0 48 19 51 52-16-6-28-18-37-34-13 20-35 30-64 34Z" />
+        <path className="brow brow-left" d="M86 91c8-5 17-5 24 0" />
+        <path className="brow brow-right" d="M130 91c8-5 17-5 24 0" />
+        <path className="eye eye-left" d="M87 106c7-7 16-7 23 0" />
+        <path className="eye eye-right" d="M130 106c7-7 16-7 23 0" />
+        <path className="nose" d="M120 105v27l-8 5" />
+        <path className="mouth" d="M101 153c11 6 27 6 38 0" />
+        <path className="bowtie" d="m103 202-18-10v24l18-10m34-4 18-10v24l-18-10" />
+      </svg>
+    </div>
+  );
+}
+
 function IdleState({ onStart }: { onStart: () => void }) {
   return (
     <button className="idle-touch" onClick={onStart} type="button">
       <div className="idle-mark"><Logo /></div>
-      <div className="tap-ring" aria-hidden="true"><span /></div>
-      <strong>Tap and tell me<br />about your day</strong>
+      <div className="idle-persona">
+        <BartenderFace mood="ready" />
+        <div className="idle-greeting"><span>YOUR PERSONAL MIXOLOGIST</span><strong>Good evening.</strong><p>Tell me about your day and I’ll craft your drink.</p></div>
+      </div>
+      <div className="tap-invitation"><i aria-hidden="true" /><strong>Tap to speak</strong></div>
     </button>
   );
 }
@@ -301,6 +340,7 @@ function ListeningState({ machine }: { machine: MachineState }) {
         <div className="level-meter"><div style={{ height: `${level}%` }} /></div>
       </div>
       <div className="listening-copy">
+        <BartenderFace mood="listening" size="medium" />
         <div className="sound-wave" aria-hidden="true">{[30, 54, 78, 44, 92, 62, 36].map((height, index) => <i key={index} style={{ height }} />)}</div>
         <h1>I’m listening…</h1>
         <p>Keep talking naturally.</p>
@@ -337,7 +377,7 @@ function ThinkingState({ features: value, now }: { features: VoiceFeatures; now:
   const visibleCount = Math.min(6, Math.floor((now / 700) % 8) + 1);
   return (
     <section className="thinking-layout">
-      <header><p>READING YOUR VOICE</p><h1>Finding your mix…</h1></header>
+      <header><div><p>READING YOUR VOICE</p><h1>Finding your mix…</h1></div><BartenderFace mood="thinking" size="small" /></header>
       <div className="gauges-grid">
         {voiceGauges(value).map((gauge, index) => <Gauge key={gauge.label} gauge={gauge} visible={index < visibleCount} />)}
       </div>
@@ -350,6 +390,7 @@ function RevealState({ recipe: value, features: featureValues }: { recipe: Recip
   return (
     <section className="reveal-layout">
       <div className="reveal-main">
+        <BartenderFace mood="pleased" size="small" />
         <p className="eyebrow">YOUR DRINK IS</p>
         <h1>{value.name}</h1>
         <span className="mood-chip">{value.mood}</span>
@@ -375,6 +416,7 @@ function PouringState({ machine, now }: { machine: MachineState; now: number }) 
   return (
     <section className="pour-layout">
       <header>
+        <BartenderFace mood="focused" size="medium" />
         <p>{pouringComplete ? "ALL POURS COMPLETE" : `POUR ${activeIndex + 1} OF ${pours.length}`}</p>
         <h1>{pouringComplete ? "Drink complete" : machine.ingredients[String(machine.pour?.channel)]}</h1>
         {!pouringComplete && <strong>{currentMl} / {machine.pour?.ml ?? 0} ml</strong>}
@@ -398,11 +440,7 @@ function PouringState({ machine, now }: { machine: MachineState; now: number }) 
 function ServingState({ recipe: value }: { recipe: Recipe }) {
   return (
     <section className="serving-layout">
-      <svg viewBox="0 0 160 160" aria-hidden="true">
-        <path d="M38 27h84l-10 105H48L38 27Z" />
-        <path d="M47 69c18-9 46 10 66 0l-6 54H53l-6-54Z" />
-        <path d="m91 19 19-12" />
-      </svg>
+      <BartenderFace mood="celebrating" />
       <div><p>IT’S READY</p><h1>Take your drink</h1><h2>{value.name}</h2></div>
     </section>
   );
@@ -411,7 +449,7 @@ function ServingState({ recipe: value }: { recipe: Recipe }) {
 function ErrorState({ message, onReset }: { message: string | null; onReset: () => void }) {
   return (
     <section className="error-layout">
-      <svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="30" /><path d="M40 22v23M40 57h.1" /></svg>
+      <BartenderFace mood="concerned" size="medium" />
       <h1>Something interrupted the mix.</h1>
       <p>{message || "Please check the machine, then try once more."}</p>
       <button type="button" onClick={onReset}>Try again</button>
