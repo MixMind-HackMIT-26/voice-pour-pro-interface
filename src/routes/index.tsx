@@ -183,6 +183,7 @@ function MixMindKiosk() {
   // for the Pi's backend and switch to it when it answers -- at boot, Chromium
   // can easily come up before the server does.
   const forcedDemo = useRef(false);
+  const lastState = useRef("");
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("demo") === "1") {
@@ -192,10 +193,16 @@ function MixMindKiosk() {
     }
   }, []);
 
+  // The clock re-renders the whole page, so it runs only where something moves
+  // with time: the demo, "thinking" and "pouring". Ticking at 50 ms on every
+  // screen kept the Pi's Chromium at ~85% CPU on the idle screen.
+  const clockNeeded = (isDemo && demoRunning) || machine.state === "thinking" || machine.state === "pouring";
   useEffect(() => {
-    const clock = window.setInterval(() => setNow(Date.now()), 50);
+    if (!clockNeeded) return;
+    setNow(Date.now());                    // don't start from a stale time
+    const clock = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(clock);
-  }, []);
+  }, [clockNeeded]);
 
   useEffect(() => {
     if (!isDemo) return;
@@ -216,13 +223,18 @@ function MixMindKiosk() {
       try {
         const response = await fetch("/api/state", { cache: "no-store" });
         if (!response.ok) throw new Error("Machine unavailable");
-        const data = (await response.json()) as MachineState;
+        const text = await response.text();
         if (cancelled) return;
         if (isDemo) {                      // the backend is back: leave demo
           setIsDemo(false);
           setDemoRunning(false);
         }
-        setMachine(data);
+        // Redraw only when the machine actually changed: on the idle screen
+        // it answers the same thing five times a second.
+        if (text !== lastState.current) {
+          lastState.current = text;
+          setMachine(JSON.parse(text) as MachineState);
+        }
       } catch {
         if (!cancelled && !isDemo) {
           demoEpoch.current = Date.now();
