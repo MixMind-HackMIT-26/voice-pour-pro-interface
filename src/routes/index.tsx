@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 type MachineStateName =
   | "idle"
@@ -373,10 +373,11 @@ function dialBand(value: number) {
 
 function VoiceDialRow({ dial, delay = 0 }: { dial: VoiceDial; delay?: number }) {
   const band = dialBand(dial.value);
+  const markerStyle = { "--dial-position": `${dial.value * 100}%`, animationDelay: `${delay}ms` } as CSSProperties;
   return (
     <div className="voice-dial">
       <div className="dial-heading"><strong>{dial.label}</strong><span>{dial.low}</span><i /><span>{dial.high}</span></div>
-      <div className="dial-track"><i style={{ left: `${dial.value * 100}%`, transitionDelay: `${delay}ms` }} /></div>
+      <div className="dial-track"><i style={markerStyle} /></div>
       <div className="dial-reading"><strong>{dial.readings[band]}</strong>{dial.hints[band] && <span>→ {dial.hints[band]}</span>}</div>
     </div>
   );
