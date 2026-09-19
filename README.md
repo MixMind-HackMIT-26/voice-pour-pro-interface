@@ -138,3 +138,43 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Docker
+
+```
+docker build -t voice-pour .
+docker run -p 3000:3000 voice-pour
+```
+
+Open http://localhost:3000 (add `?demo=1` to force demo mode).
+
+## Raspberry Pi touchscreen (kiosk)
+
+The Pi needs no Node.js: build on a laptop, copy ~500 KB of static files.
+The page makes no requests outside the Pi, so it works offline.
+
+```
+NITRO_PRESET=node-server npm run build
+(PORT=3999 node .output/server/index.mjs & sleep 3; rm -rf pi-ui && cp -R .output/public pi-ui && curl -s localhost:3999/ -o pi-ui/index.html; kill %1)
+rsync -av --delete pi-ui/ pi@<pi-ip>:~/mixmind-ui/
+```
+
+On the Pi:
+
+```
+python3 -m http.server 8080 --directory ~/mixmind-ui
+```
+
+Then open `http://localhost:8080` in Chromium on the touchscreen and go
+fullscreen (F11 -- `Fn`+`3` on the mini keyboard), or launch it with
+`chromium-browser --kiosk http://localhost:8080`.
+
+Why the snapshot instead of a static build: on this template, TanStack
+Start's SPA mode fails to prerender `/` (Internal Server Error), and nitro's
+`static` preset fails with "rolldownOptions.input should not be an html file
+when building for SSR". Rendering the page once with the node server and
+saving it works, and the saved page is fully interactive.
+
+On the HackMIT Wi-Fi `pi.local` does not resolve, but the Pi is reachable by
+IP -- find it with `hostname -I` on the Pi. Until a backend serves
+`/api/state`, the UI runs in DEMO mode.

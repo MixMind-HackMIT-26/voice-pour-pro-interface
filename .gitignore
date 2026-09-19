@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Raspberry Pi static build (see README) and npm lockfile -- this repo uses bun
+pi-ui/
+package-lock.json
