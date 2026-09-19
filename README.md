@@ -1,14 +1,132 @@
-# Welcome to your Lovable project
+# MixMind Voice Bar
+
+Build a single-screen kiosk UI for "MixMind", a drink-mixing machine that
+
+listens to how someone speaks and pours them a drink.
+
+HARD CONSTRAINTS
+
+- Exactly 1024x600 px, landscape, 7-inch capacitive touchscreen. Fixed layout
+
+  at that size. No scrolling, ever. No hover states (touch only).
+
+- Touch targets at least 64 px. Text readable from 1.5 m: nothing under 20 px.
+
+- Must run 100% OFFLINE. No Supabase, no auth, no database, no analytics,
+
+  no Google Fonts, no CDN images or scripts. Use system fonts and inline SVG.
+
+  It will be built with `npm run build` and served as static files from
+
+  localhost on a Raspberry Pi.
+
+- High contrast: it is used in a loud, brightly lit hall. Anything the
+
+  machine says out loud must also appear on screen, large.
+
+- No landing page, no navigation, no settings. One screen that changes state.
+
+DATA
+
+Poll GET /api/state every 200 ms. It returns:
+
+{
+
+  "state": "idle" | "listening" | "thinking" | "reveal" | "pouring" | "serving" | "error",
+
+  "level_db": -32.5,            // mic level while listening, roughly -60..0
+
+  "elapsed_s": 4.2,             // seconds since listening started
+
+  "features": {                 // null until measured
+
+    "pitch_mean_hz": 105, "pitch_sd_hz": 18.4, "loudness_db": -27.4,
+
+    "pause_ratio": 0.09, "onset_rate_hz": 0.33, "jitter_pct": 1.95,
+
+    "shimmer_pct": 12.2, "duration_s": 18.4 },
+
+  "recipe": {                   // null until chosen
+
+    "name": "Running On Empty", "mood": "depleted",
+
+    "rationale": "You took your time and your voice stayed level...",
+
+    "pours": [{"channel": 1, "ml": 45}, {"channel": 5, "ml": 50}, {"channel": 6, "ml": 60}],
+
+    "stir_seconds": 6 },
+
+  "pour": { "index": 1, "total": 3, "channel": 5, "ml": 50,
+
+            "duration_ms": 13333, "started_at_ms": 1726764000000 },  // null unless pouring
+
+  "ingredients": {"1": "Orange juice", "2": "Cranberry", "3": "Grapefruit",
+
+                  "4": "Iced tea", "5": "Apple juice", "6": "Ginger ale"},
+
+  "error": null
+
+}
+
+POST /api/start starts listening. POST /api/reset returns to idle.
+
+DEMO MODE (required): if /api/state fails, or the URL has ?demo=1, run a
+
+built-in fake sequence through every state on a loop with the example data
+
+above, so the UI can be previewed with no backend. Show a small "DEMO" tag.
+
+STATES
+
+- idle: "MixMind" wordmark, slow pulse, huge button "Tap and tell me about
+
+  your day". The whole screen is tappable. Tapping POSTs /api/start.
+
+- listening: big live level meter driven by level_db, elapsed seconds,
+
+  "I'm listening..." Cap at 25 s.
+
+- thinking: the six voice measurements appear one by one as horizontal
+
+  gauges, each labelled in plain words: Pitch, Pitch wobble, Loudness,
+
+  Pauses, Pace, Voice strain (jitter). Plus a subtle shimmer animation.
+
+- reveal: drink name HUGE, mood as a coloured chip, rationale below in
+
+  large readable text. The gauges stay visible, small, on one side:
+
+  they are the proof that the machine measured the voice.
+
+- pouring: one vertical bar per ingredient in the recipe, labelled with the
+
+  ingredient name, filling in order. Animate the current bar from
+
+  started_at_ms over duration_ms, ml counting up. Then "Stirring" for
+
+  stir_seconds.
+
+- serving: "Take your drink" and the drink name, for 8 s, then back to idle.
+
+- error: one plain human sentence (never a stack trace) and a big
+
+  "Try again" button that POSTs /api/reset.
+
+LOOK
+
+Dark background, one warm accent colour, bold and calm, like a premium
+
+bar menu. Smooth transitions between states. No emoji.
 
 This project was built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/dbc73f88-9917-4064-95d6-f6867616806e).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +138,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
