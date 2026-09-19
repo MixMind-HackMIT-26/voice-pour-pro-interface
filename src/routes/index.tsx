@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 type MachineStateName =
   | "idle"
@@ -350,37 +350,62 @@ function ListeningState({ machine }: { machine: MachineState }) {
   );
 }
 
-type GaugeDefinition = { label: string; value: number; display: string; min: number; max: number };
+type VoiceDial = { label: string; low: string; high: string; value: number; readings: [string, string, string]; hints: [string, string, string] };
 
-function voiceGauges(value: VoiceFeatures): GaugeDefinition[] {
+function normalize(value: number, low: number, high: number) {
+  return Math.max(0, Math.min(1, (value - low) / (high - low)));
+}
+
+function voiceDials(value: VoiceFeatures): VoiceDial[] {
+  const energy = 0.5 * normalize(value.loudness_db, -32, -12) + 0.5 * normalize(value.onset_rate_hz, 0.5, 2.1);
+  const halting = normalize(value.pause_ratio, 0.018, 0.143);
+  const animated = normalize(value.pitch_sd_hz, 19, 26.7);
   return [
-    { label: "Pitch", value: value.pitch_mean_hz, display: `${Math.round(value.pitch_mean_hz)} Hz`, min: 70, max: 260 },
-    { label: "Pitch wobble", value: value.pitch_sd_hz, display: `${value.pitch_sd_hz.toFixed(1)} Hz`, min: 0, max: 50 },
-    { label: "Loudness", value: value.loudness_db, display: `${value.loudness_db.toFixed(1)} dB`, min: -60, max: 0 },
-    { label: "Pauses", value: value.pause_ratio, display: `${Math.round(value.pause_ratio * 100)}%`, min: 0, max: 0.5 },
-    { label: "Pace", value: value.onset_rate_hz, display: `${value.onset_rate_hz.toFixed(2)} Hz`, min: 0, max: 1 },
-    { label: "Voice strain", value: value.jitter_pct, display: `${value.jitter_pct.toFixed(2)}%`, min: 0, max: 5 },
+    { label: "Energy", low: "low", high: "high", value: energy, readings: ["running low", "even keel", "fired up"], hints: ["dark sweet comfort + warm spiced", "", "tart red + sparkling"] },
+    { label: "Flow", low: "steady", high: "halting", value: halting, readings: ["straight through", "a few pauses", "choosing words carefully"], hints: ["warm spiced", "", "bright citrus base"] },
+    { label: "Tone", low: "flat", high: "lively", value: animated, readings: ["flat, tired", "relaxed", "animated"], hints: ["", "", "sharp sour accent"] },
   ];
 }
 
-function Gauge({ gauge, visible = true, compact = false }: { gauge: GaugeDefinition; visible?: boolean; compact?: boolean }) {
-  const width = Math.max(4, Math.min(100, ((gauge.value - gauge.min) / (gauge.max - gauge.min)) * 100));
+function dialBand(value: number) {
+  return value < 0.33 ? 0 : value <= 0.66 ? 1 : 2;
+}
+
+function VoiceDialRow({ dial, delay = 0 }: { dial: VoiceDial; delay?: number }) {
+  const band = dialBand(dial.value);
+  const markerStyle = { "--dial-position": `${dial.value * 100}%`, animationDelay: `${delay}ms` } as CSSProperties;
   return (
-    <div className={`voice-gauge ${compact ? "voice-gauge-compact" : ""} ${visible ? "is-visible" : ""}`}>
-      <div><span>{gauge.label}</span><strong>{gauge.display}</strong></div>
-      <div className="gauge-track"><i style={{ width: `${width}%` }} /></div>
+    <div className="voice-dial">
+      <div className="dial-heading"><strong>{dial.label}</strong><span>{dial.low}</span><i /><span>{dial.high}</span></div>
+      <div className="dial-track"><i style={markerStyle} /></div>
+      <div className="dial-reading"><strong>{dial.readings[band]}</strong>{dial.hints[band] && <span>→ {dial.hints[band]}</span>}</div>
+    </div>
+  );
+}
+
+function VoiceRead({ value, showRaw = false }: { value: VoiceFeatures; showRaw?: boolean }) {
+  const raw = [
+    ["Pitch", `${Math.round(value.pitch_mean_hz)} Hz`],
+    ["Pitch wobble", `${value.pitch_sd_hz.toFixed(1)} Hz`],
+    ["Loudness", `${value.loudness_db.toFixed(1)} dB`],
+    ["Pauses", `${Math.round(value.pause_ratio * 100)}%`],
+    ["Pace", `${value.onset_rate_hz.toFixed(2)} onsets/s`],
+    ["Voice strain / jitter", `${value.jitter_pct.toFixed(2)}%`],
+  ];
+  return (
+    <div className="voice-read">
+      {voiceDials(value).map((dial, index) => <VoiceDialRow key={dial.label} dial={dial} delay={index * 110} />)}
+      {showRaw && <details className="raw-readings"><summary>Show the numbers</summary><div>{raw.map(([label, reading]) => <p key={label}><span>{label}</span><strong>{reading}</strong></p>)}</div></details>}
     </div>
   );
 }
 
 function ThinkingState({ features: value, now }: { features: VoiceFeatures; now: number }) {
-  const visibleCount = Math.min(6, Math.floor((now / 700) % 8) + 1);
+  void now;
   return (
     <section className="thinking-layout">
       <header><div><p>READING YOUR VOICE</p><h1>Finding your mix…</h1></div><BartenderFace mood="thinking" size="small" /></header>
-      <div className="gauges-grid">
-        {voiceGauges(value).map((gauge, index) => <Gauge key={gauge.label} gauge={gauge} visible={index < visibleCount} />)}
-      </div>
+      <VoiceRead value={value} />
       <div className="shimmer-line" aria-label="Analysis in progress" />
     </section>
   );
@@ -394,11 +419,10 @@ function RevealState({ recipe: value, features: featureValues }: { recipe: Recip
         <p className="eyebrow">YOUR DRINK IS</p>
         <h1>{value.name}</h1>
         <span className="mood-chip">{value.mood}</span>
-        <p className="rationale">{value.rationale}</p>
       </div>
       <aside className="proof-panel">
-        <h2>Your voice</h2>
-        {voiceGauges(featureValues).map((gauge) => <Gauge key={gauge.label} gauge={gauge} compact />)}
+        <p className="bartender-read">“{value.rationale}”</p>
+        <VoiceRead value={featureValues} showRaw />
       </aside>
     </section>
   );

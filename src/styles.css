@@ -145,32 +145,51 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 .elapsed { margin-top: 58px; display: flex; align-items: baseline; gap: 12px; color: var(--primary); }
 .elapsed strong { font-size: 54px; }.elapsed span { font-size: 22px; font-weight: 750; }
 
-.thinking-layout { height: 100%; padding: 102px 65px 40px; }
+.thinking-layout { height: 100%; padding: 92px 65px 32px; }
 .thinking-layout header { height: 102px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); padding-bottom: 12px; }
 .thinking-layout header .bartender-face { margin-right: 10px; }
 .thinking-layout header p, .pour-layout header p, .serving-layout p, .eyebrow { margin: 0; color: var(--primary); font-size: 20px; font-weight: 900; }
 .thinking-layout h1 { margin: 0; font-size: 42px; }
-.gauges-grid { margin-top: 34px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 62px; row-gap: 24px; }
-.voice-gauge { opacity: 0; transform: translateX(-12px); transition: opacity 350ms, transform 350ms; }
-.voice-gauge.is-visible { opacity: 1; transform: none; }
-.voice-gauge > div:first-child { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 22px; }
-.voice-gauge strong { color: var(--primary); }
-.gauge-track { height: 12px; background: var(--muted); overflow: hidden; }
-.gauge-track i { display: block; height: 100%; background: var(--primary); }
-.shimmer-line { margin-top: 30px; height: 4px; overflow: hidden; background: var(--muted); }
+.voice-read { display: grid; gap: 18px; }
+.thinking-layout > .voice-read { margin-top: 26px; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+.voice-dial { min-width: 0; }
+.dial-heading { display: grid; grid-template-columns: auto 1fr auto auto; align-items: baseline; gap: 9px; }
+.dial-heading strong { color: var(--foreground); font-size: 22px; }
+.dial-heading span { color: var(--muted-foreground); font-size: 18px; }
+.dial-heading span:first-of-type { text-align: right; }
+.dial-heading i { width: 26px; height: 1px; background: var(--border); }
+.dial-track { position: relative; height: 18px; margin-top: 7px; border-top: 2px solid var(--border); }
+.dial-track::before, .dial-track::after { content: ""; position: absolute; top: -5px; width: 2px; height: 8px; background: var(--border); }
+.dial-track::before { left: 0; }.dial-track::after { right: 0; }
+.dial-track i { position: absolute; top: -8px; left: var(--dial-position); width: 14px; height: 14px; border: 3px solid var(--background); border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--primary); transform: translateX(-50%); animation: dial-arrive 600ms ease-out both; }
+.dial-reading { margin-top: 2px; min-height: 52px; }
+.dial-reading strong { display: block; color: var(--primary); font-size: 21px; }
+.dial-reading span { display: block; margin-top: 3px; color: var(--muted-foreground); font-size: 17px; line-height: 1.15; }
+@keyframes dial-arrive { from { left: 50%; opacity: .25; } to { left: var(--dial-position); opacity: 1; } }
+.shimmer-line { margin-top: 22px; height: 4px; overflow: hidden; background: var(--muted); }
 .shimmer-line::after { content: ""; display: block; width: 180px; height: 100%; background: var(--primary); animation: shimmer 1.5s ease-in-out infinite; }
 @keyframes shimmer { from { transform: translateX(-180px); } to { transform: translateX(960px); } }
 
-.reveal-layout { height: 100%; display: grid; grid-template-columns: 1fr 330px; gap: 50px; padding: 104px 54px 42px; }
+.reveal-layout { height: 100%; display: grid; grid-template-columns: 330px 1fr; gap: 42px; padding: 92px 46px 30px; }
 .reveal-main { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding-left: 118px; }
 .reveal-main .bartender-face { position: absolute; left: 0; top: 28px; }
-.reveal-main h1 { max-width: 590px; margin: 9px 0 16px; font-size: 66px; line-height: .93; letter-spacing: 0; }
+.reveal-main h1 { max-width: 330px; margin: 9px 0 16px; font-size: 48px; line-height: .95; letter-spacing: 0; }
 .mood-chip { padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); font-size: 21px; font-weight: 900; text-transform: uppercase; }
-.rationale { max-width: 600px; margin: 25px 0 0; color: var(--muted-foreground); font-size: 23px; line-height: 1.35; }
-.proof-panel { border-left: 2px solid var(--border); padding-left: 32px; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
-.proof-panel h2 { margin: 0 0 6px; font-size: 25px; }
-.voice-gauge-compact > div:first-child { margin-bottom: 5px; font-size: 20px; }
-.voice-gauge-compact .gauge-track { height: 7px; }
+.proof-panel { min-width: 0; border-left: 2px solid var(--border); padding-left: 34px; align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+.bartender-read { margin: 0 0 18px; color: var(--foreground); font-family: Georgia, "Times New Roman", serif; font-size: 27px; line-height: 1.18; }
+.proof-panel .voice-read { gap: 10px; }
+.proof-panel .dial-heading strong { font-size: 20px; }
+.proof-panel .dial-heading span { font-size: 16px; }
+.proof-panel .dial-reading { min-height: 38px; display: flex; align-items: baseline; gap: 9px; }
+.proof-panel .dial-reading strong { font-size: 18px; }
+.proof-panel .dial-reading span { font-size: 15px; }
+.raw-readings { margin-top: 4px; color: var(--muted-foreground); }
+.raw-readings summary { width: max-content; min-height: 32px; display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 16px; cursor: pointer; }
+.raw-readings summary::before { content: "+"; color: var(--primary); font-size: 21px; }
+.raw-readings[open] summary::before { content: "−"; }
+.raw-readings div { position: absolute; right: 46px; bottom: 24px; width: 570px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 24px; padding: 12px 16px; border: 1px solid var(--border); background: var(--background); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.raw-readings p { display: flex; justify-content: space-between; gap: 12px; margin: 0; font-size: 14px; }
+.raw-readings strong { color: var(--foreground); }
 
 .pour-layout { height: 100%; display: grid; grid-template-columns: 415px 1fr; padding: 110px 62px 45px; }
 .pour-layout header { align-self: center; position: relative; padding-top: 178px; }
