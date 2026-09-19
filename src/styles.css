@@ -152,10 +152,6 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 .pour-item span { display: block; min-height: 52px; margin-top: 12px; font-size: 20px; line-height: 1.15; }
 .pour-item strong { font-size: 20px; color: var(--foreground); }
 .pour-item.active .pour-vessel { border-color: var(--primary); box-shadow: 0 0 28px color-mix(in oklch, var(--primary) 18%, transparent); }
-.stir-icon { position: absolute; left: 208px; bottom: 106px; width: 82px; height: 82px; border: 5px solid var(--primary); border-radius: 50%; animation: stir 1.2s linear infinite; }
-.stir-icon span { position: absolute; width: 8px; height: 45px; left: 50%; top: -14px; background: var(--foreground); transform: rotate(25deg); }
-@keyframes stir { to { transform: rotate(360deg); } }
-
 .serving-layout { height: 100%; display: flex; justify-content: center; align-items: center; gap: 72px; padding-top: 42px; }
 .serving-layout svg { width: 245px; height: 245px; fill: none; stroke: var(--foreground); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
 .serving-layout svg path:nth-child(2) { fill: var(--primary); stroke: var(--primary); }
