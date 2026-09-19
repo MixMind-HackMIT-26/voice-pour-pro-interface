@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type MachineStateName =
   | "idle"
@@ -173,11 +173,17 @@ function getDemoState(epoch: number, now: number): MachineState {
 }
 
 function MixMindKiosk() {
-  const forcedDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
-  const [isDemo, setIsDemo] = useState(forcedDemo);
+  const [isDemo, setIsDemo] = useState(false);
   const [machine, setMachine] = useState<MachineState>(baseState);
   const [now, setNow] = useState(Date.now());
   const demoEpoch = useRef(Date.now());
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("demo") === "1") {
+      demoEpoch.current = Date.now();
+      setIsDemo(true);
+    }
+  }, []);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(Date.now()), 50);
