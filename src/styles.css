@@ -196,13 +196,14 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 .pour-layout header .bartender-face { position: absolute; top: -18px; left: 0; }
 .pour-layout header h1 { margin: 12px 0; font-size: 52px; line-height: 1; }
 .pour-layout header strong { color: var(--primary); font-size: 30px; }
-.pour-bars { display: flex; justify-content: center; align-items: end; gap: 34px; }
-.pour-item { width: 130px; text-align: center; color: var(--muted-foreground); }
+.pour-bars { display: flex; justify-content: center; align-items: end; gap: 14px; }
+.pour-item { width: 68px; text-align: center; color: var(--muted-foreground); }
+.pour-item.unused { opacity: .3; }
 .pour-vessel { position: relative; height: 300px; overflow: hidden; border: 4px solid var(--border); border-top: 0; }
 .pour-vessel::before { content: ""; position: absolute; inset: 0; z-index: 2; background: repeating-linear-gradient(to top, transparent 0 48px, color-mix(in oklch, var(--foreground) 12%, transparent) 48px 50px); }
 .pour-vessel i { position: absolute; bottom: 0; left: 0; right: 0; background: var(--primary); transition: height 80ms linear; }
-.pour-item span { display: block; min-height: 52px; margin-top: 12px; font-size: 20px; line-height: 1.15; }
-.pour-item strong { font-size: 20px; color: var(--foreground); }
+.pour-item span { display: block; min-height: 48px; margin-top: 10px; font-size: 14px; line-height: 1.15; }
+.pour-item strong { font-size: 15px; color: var(--foreground); }
 .pour-item.active .pour-vessel { border-color: var(--primary); box-shadow: 0 0 28px color-mix(in oklch, var(--primary) 18%, transparent); }
 .serving-layout { height: 100%; display: flex; justify-content: center; align-items: center; gap: 72px; padding-top: 42px; }
 .serving-layout .bartender-face { width: 310px; height: 310px; }

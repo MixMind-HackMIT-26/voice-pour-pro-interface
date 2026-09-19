@@ -452,6 +452,7 @@ function RevealState({ recipe: value, features: featureValues }: { recipe: Recip
 }
 
 function PouringState({ machine, now }: { machine: MachineState; now: number }) {
+  // pour.index counts from 1; activeIndex counts from 0
   const activeIndex = machine.pour ? Math.max(0, machine.pour.index - 1) : machine.recipe?.pours.length ?? 0;
   const currentProgress = machine.pour
     ? Math.max(0, Math.min(1, (now - machine.pour.started_at_ms) / machine.pour.duration_ms))
@@ -469,13 +470,18 @@ function PouringState({ machine, now }: { machine: MachineState; now: number }) 
         {!pouringComplete && <strong>{currentMl} / {machine.pour?.ml ?? 0} ml</strong>}
       </header>
       <div className="pour-bars">
-        {pours.map((pour, index) => {
-          const fill = index < activeIndex ? 1 : index === activeIndex ? currentProgress : 0;
+        {/* one bar per pump the machine has, not per ingredient in the drink:
+            the pumps this drink does not use stay dim and empty */}
+        {Object.keys(machine.ingredients).map(Number).sort((a, b) => a - b).map((channel) => {
+          const order = pours.findIndex((p) => p.channel === channel);
+          const pour = order < 0 ? null : pours[order];
+          const fill = !pour ? 0 : order < activeIndex ? 1 : order === activeIndex ? currentProgress : 0;
+          const active = pour !== null && order === activeIndex && !pouringComplete;
           return (
-            <div className={`pour-item ${index === activeIndex && !pouringComplete ? "active" : ""}`} key={`${pour.channel}-${index}`}>
+            <div className={`pour-item${active ? " active" : ""}${pour ? "" : " unused"}`} key={channel}>
               <div className="pour-vessel"><i style={{ height: `${fill * 100}%` }} /></div>
-              <span>{machine.ingredients[String(pour.channel)]}</span>
-              <strong>{pour.ml} ml</strong>
+              <span>{machine.ingredients[String(channel)]}</span>
+              <strong>{pour ? `${pour.ml} ml` : "—"}</strong>
             </div>
           );
         })}
