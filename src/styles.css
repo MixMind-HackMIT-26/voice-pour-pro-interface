@@ -77,7 +77,7 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 .wordmark svg circle { fill: var(--primary); stroke: none; }
 .wordmark-compact { gap: 9px; font-size: 24px; }
 .wordmark-compact svg { width: 34px; height: 34px; stroke-width: 5; }
-.demo-tag { border: 2px solid var(--primary); color: var(--primary); padding: 7px 12px; font-size: 20px; font-weight: 900; }
+.demo-tag { margin-left: auto; border: 2px solid var(--primary); color: var(--primary); padding: 7px 12px; font-size: 20px; font-weight: 900; }
 
 .state-stage { position: absolute; inset: 0; animation: state-in 420ms ease-out both; }
 @keyframes state-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
