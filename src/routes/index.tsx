@@ -179,9 +179,14 @@ function MixMindKiosk() {
   const [machine, setMachine] = useState<MachineState>(baseState);
   const [now, setNow] = useState(Date.now());
   const demoEpoch = useRef(Date.now());
+  // ?demo=1 is demo for good. Otherwise demo is only a fallback: keep checking
+  // for the Pi's backend and switch to it when it answers -- at boot, Chromium
+  // can easily come up before the server does.
+  const forcedDemo = useRef(false);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("demo") === "1") {
+      forcedDemo.current = true;
       demoEpoch.current = Date.now();
       setIsDemo(true);
     }
@@ -204,7 +209,7 @@ function MixMindKiosk() {
   }, [demoRunning, isDemo, now]);
 
   useEffect(() => {
-    if (isDemo) return;
+    if (forcedDemo.current) return;
 
     let cancelled = false;
     const poll = async () => {
@@ -212,16 +217,22 @@ function MixMindKiosk() {
         const response = await fetch("/api/state", { cache: "no-store" });
         if (!response.ok) throw new Error("Machine unavailable");
         const data = (await response.json()) as MachineState;
-        if (!cancelled) setMachine(data);
+        if (cancelled) return;
+        if (isDemo) {                      // the backend is back: leave demo
+          setIsDemo(false);
+          setDemoRunning(false);
+        }
+        setMachine(data);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !isDemo) {
           demoEpoch.current = Date.now();
           setIsDemo(true);
         }
       }
     };
     void poll();
-    const interval = window.setInterval(poll, 200);
+    // Fast while the machine is live; a gentle retry while in fallback demo.
+    const interval = window.setInterval(poll, isDemo ? 2000 : 200);
     return () => {
       cancelled = true;
       window.clearInterval(interval);

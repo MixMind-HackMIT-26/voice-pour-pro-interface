@@ -154,16 +154,20 @@ The Pi needs no Node.js: build on a laptop, copy ~500 KB of static files.
 The page makes no requests outside the Pi, so it works offline.
 
 ```
-NITRO_PRESET=node-server npm run build
-(PORT=3999 node .output/server/index.mjs & sleep 3; rm -rf pi-ui && cp -R .output/public pi-ui && curl -s localhost:3999/ -o pi-ui/index.html; kill %1)
+./scripts/build-pi.sh
 rsync -av --delete pi-ui/ pi@<pi-ip>:~/mixmind-ui/
 ```
 
-On the Pi:
+The script checks that every file the saved page asks for is really in
+`pi-ui/`. It refuses to run while another server holds its port: a stale UI
+server once answered instead of the fresh build, and the saved page pointed at
+old files -- an unstyled screen on the Pi.
 
-```
-python3 -m http.server 8080 --directory ~/mixmind-ui
-```
+On the Pi, the kiosk server in
+[voice_decipher_2](https://github.com/MixMind-HackMIT-26/voice_decipher_2)
+serves this folder *and* `/api/state` on :8080 (`python server.py`). For a
+look at the UI alone, `python3 -m http.server 8080 --directory ~/mixmind-ui`
+works too -- it shows DEMO mode.
 
 Then open `http://localhost:8080` in Chromium on the touchscreen and go
 fullscreen (F11 -- `Fn`+`3` on the mini keyboard), or launch it with
@@ -176,5 +180,6 @@ when building for SSR". Rendering the page once with the node server and
 saving it works, and the saved page is fully interactive.
 
 On the HackMIT Wi-Fi `pi.local` does not resolve, but the Pi is reachable by
-IP -- find it with `hostname -I` on the Pi. Until a backend serves
-`/api/state`, the UI runs in DEMO mode.
+IP -- find it with `hostname -I` on the Pi. With no backend the UI runs in
+DEMO mode, and it keeps checking: when the backend comes up (it can start after
+Chromium at boot) the UI switches to it by itself. `?demo=1` forces demo.
