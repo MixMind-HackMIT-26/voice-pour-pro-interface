@@ -39,6 +39,12 @@ html, body {
   user-select: none;
 }
 
+/* The kiosk is drawn at a fixed 1024x600 and scaled to whatever panel it lands
+   on: uniform scale, centred, letterboxed in the page background so the bars
+   are invisible. Without this the design sits at native size in the middle of
+   a larger screen. --kiosk-scale is set by the inline script in __root.tsx. */
+body { display: flex; align-items: center; justify-content: center; }
+
 button { font: inherit; -webkit-tap-highlight-color: transparent; }
 button:disabled { opacity: .45; cursor: default; }
 .mode-actions { position: absolute; bottom: 66px; left: 400px; right: 40px; display: flex; gap: 16px; }
@@ -67,6 +73,9 @@ button:disabled { opacity: .45; cursor: default; }
   position: relative;
   width: 1024px;
   height: 600px;
+  flex: none;
+  transform: scale(var(--kiosk-scale, 1));
+  transform-origin: center center;
   overflow: hidden;
   background:
     radial-gradient(circle at 70% 42%, color-mix(in oklch, var(--primary) 9%, transparent), transparent 32%),

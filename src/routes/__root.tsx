@@ -99,11 +99,28 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+const KIOSK_FIT = `(function () {
+  var root = document.documentElement;
+  function fit() {
+    root.style.setProperty(
+      "--kiosk-scale",
+      String(Math.min(window.innerWidth / 1024, window.innerHeight / 600))
+    );
+  }
+  fit();
+  window.addEventListener("resize", fit);
+  window.addEventListener("orientationchange", fit);
+})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        {/* Scale the fixed 1024x600 kiosk design to fill this panel. Inline and
+            in the head so it runs from the prerendered snapshot the Pi serves,
+            without waiting for hydration. */}
+        <script dangerouslySetInnerHTML={{ __html: KIOSK_FIT }} />
       </head>
       <body>
         {children}
