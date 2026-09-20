@@ -645,7 +645,7 @@ function ListeningState({ machine }: { machine: MachineState }) {
           <span>QUIET</span>
         </div>
         <div className="level-meter">
-          <div style={{ height: `${level}%` }} />
+          <div style={{ transform: `scaleY(${level / 100})` }} />
         </div>
       </div>
       <div className="listening-copy">
@@ -893,7 +893,7 @@ function PouringState({ machine, now }: { machine: MachineState; now: number }) 
                 key={channel}
               >
                 <div className="pour-vessel">
-                  <i style={{ height: `${fill * 100}%` }} />
+                  <i style={{ transform: `scaleY(${fill})` }} />
                 </div>
                 <span>{machine.ingredients[String(channel)]}</span>
                 <strong>{pour ? `${pour.ml} ml` : "—"}</strong>
