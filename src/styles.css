@@ -130,25 +130,20 @@ button:disabled { opacity: .45; cursor: default; }
 .bartender-medium { width: 180px; height: 180px; }
 .bartender-small { width: 106px; height: 106px; }
 .bartender-face path, .bartender-face circle { vector-effect: non-scaling-stroke; }
-.face-line, .shoulders, .jacket, .hair, .brow, .eye, .nose, .mouth, .bowtie, .aura { stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
-.face-line { stroke-width: 2.5; }
-.shoulders, .jacket, .hair { stroke-width: 2; }
-.brow, .nose { stroke-width: 2; opacity: .7; }
-.eye, .mouth, .bowtie { stroke-width: 3; }
+.eye, .mouth, .aura { stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+.eye, .mouth { stroke-width: 5; }
+.eye-block, .wave-bar, .think-dot { fill: currentColor; }
+.wave-bar { transform-box: fill-box; transform-origin: center; transition: transform .12s ease-out; }
 .aura { stroke-width: 1; opacity: .14; transform-origin: center; }
 .aura-inner { opacity: .24; animation: aura-breathe 3.2s ease-in-out infinite; }
-.bartender-face::after { content: ""; position: absolute; pointer-events: none; }
 .bartender-listening .aura-outer { animation: aura-listen 1.2s ease-out infinite; }
-.bartender-listening .eye { stroke-width: 4; }
-.bartender-thinking .eye { stroke-dasharray: 4 5; animation: thought 1.3s linear infinite; }
-.bartender-pleased .mouth, .bartender-celebrating .mouth { d: path("M98 149c12 15 32 15 44 0"); }
-.bartender-focused .brow-left { transform: rotate(6deg); transform-origin: 98px 91px; }
-.bartender-focused .brow-right { transform: rotate(-6deg); transform-origin: 142px 91px; }
+.bartender-thinking .think-dot { animation: think-pulse 1.1s ease-in-out infinite; }
+.bartender-celebrating .eye, .bartender-celebrating .mouth { animation: cheer 1.6s ease-in-out infinite; }
 .bartender-concerned { color: var(--danger); }
-.bartender-concerned .mouth { d: path("M102 160c10-8 26-8 36 0"); }
 @keyframes aura-breathe { 50% { transform: scale(.97); opacity: .1; } }
 @keyframes aura-listen { to { transform: scale(1.12); opacity: 0; } }
-@keyframes thought { to { stroke-dashoffset: -18; } }
+@keyframes think-pulse { 50% { opacity: .25; transform: translateY(-5px); } }
+@keyframes cheer { 50% { transform: translateY(-4px); } }
 
 .listening-layout { height: 100%; display: grid; grid-template-columns: 330px 1fr; padding: 110px 70px 50px; gap: 68px; }
 .meter-wrap { display: flex; justify-content: center; gap: 18px; height: 430px; }
@@ -160,10 +155,6 @@ button:disabled { opacity: .45; cursor: default; }
 .listening-copy .bartender-face { position: absolute; left: 0; top: -34px; }
 .listening-copy h1 { margin: 24px 0 8px; font-size: 44px; line-height: 1.3; letter-spacing: 0; }
 .listening-copy p { margin: 0; color: var(--muted-foreground); font-size: 27px; }
-.sound-wave { height: 76px; display: flex; align-items: center; gap: 10px; }
-.sound-wave i { display: block; width: 10px; background: var(--primary); animation: wave 850ms ease-in-out infinite alternate; }
-.sound-wave i:nth-child(2n) { animation-delay: -300ms; }.sound-wave i:nth-child(3n) { animation-delay: -500ms; }
-@keyframes wave { to { height: 24px; opacity: .55; } }
 .elapsed { margin-top: 58px; display: flex; align-items: baseline; gap: 12px; color: var(--primary); }
 .elapsed strong { font-size: 54px; }.elapsed span { font-size: 22px; font-weight: 750; }
 

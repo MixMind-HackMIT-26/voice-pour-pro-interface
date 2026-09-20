@@ -512,35 +512,85 @@ function Logo({ compact = false }: { compact?: boolean }) {
 type BartenderMood =
   "ready" | "listening" | "thinking" | "pleased" | "focused" | "celebrating" | "concerned";
 
+// Eye height per mood; a wide-open eye is 34 tall, a squint 14.
+const EYE_HEIGHT: Record<BartenderMood, number> = {
+  ready: 34,
+  listening: 42,
+  thinking: 14,
+  pleased: 34,
+  focused: 24,
+  celebrating: 34,
+  concerned: 30,
+};
+
+// The listening mouth is a waveform; the rest are a single stroke.
+const MOUTH: Partial<Record<BartenderMood, string>> = {
+  ready: "M92 158h56",
+  thinking: "M96 158h48",
+  focused: "M98 158h44",
+  pleased: "M94 150c10 14 32 14 42 0",
+  celebrating: "M90 146c12 20 36 20 48 0",
+  concerned: "M96 164c10-12 32-12 42 0",
+};
+
+const WAVE_BARS = [16, 30, 46, 34, 20];
+
 function BartenderFace({
   mood,
   size = "large",
+  level = 0,
 }: {
   mood: BartenderMood;
   size?: "small" | "medium" | "large";
+  level?: number; // 0-100, mic level; only used while listening
 }) {
+  const eyeH = EYE_HEIGHT[mood];
+  const eyeY = 107 - eyeH / 2;
+  const smiling = mood === "pleased" || mood === "celebrating";
+  const scale = 0.3 + (0.9 * Math.max(0, Math.min(100, level))) / 100;
+
   return (
     <div className={`bartender-face bartender-${mood} bartender-${size}`} aria-hidden="true">
       <svg viewBox="0 0 240 240" fill="none">
         <circle className="aura aura-outer" cx="120" cy="120" r="108" />
         <circle className="aura aura-inner" cx="120" cy="120" r="94" />
-        <path className="shoulders" d="M46 226c13-36 39-52 74-52s61 16 74 52" />
-        <path className="jacket" d="m86 181 34 31 34-31M120 212v14" />
-        <path
-          className="face-line"
-          d="M70 61c11-25 31-38 50-38s39 13 50 38v56c0 42-23 72-50 72s-50-30-50-72V61Z"
-        />
-        <path
-          className="hair"
-          d="M70 71c2-34 24-52 50-52 27 0 48 19 51 52-16-6-28-18-37-34-13 20-35 30-64 34Z"
-        />
-        <path className="brow brow-left" d="M86 91c8-5 17-5 24 0" />
-        <path className="brow brow-right" d="M130 91c8-5 17-5 24 0" />
-        <path className="eye eye-left" d="M87 106c7-7 16-7 23 0" />
-        <path className="eye eye-right" d="M130 106c7-7 16-7 23 0" />
-        <path className="nose" d="M120 105v27l-8 5" />
-        <path className="mouth" d="M101 153c11 6 27 6 38 0" />
-        <path className="bowtie" d="m103 202-18-10v24l18-10m34-4 18-10v24l-18-10" />
+
+        {smiling ? (
+          <path className="eye" d="M78 112c6-13 14-13 20 0M142 112c6-13 14-13 20 0" />
+        ) : (
+          <>
+            <rect className="eye-block" x="78" y={eyeY} width="20" height={eyeH} rx="10" />
+            <rect className="eye-block" x="142" y={eyeY} width="20" height={eyeH} rx="10" />
+          </>
+        )}
+
+        {mood === "listening" ? (
+          WAVE_BARS.map((height, index) => (
+            <rect
+              key={index}
+              className="wave-bar"
+              x={84 + index * 16}
+              y={158 - height / 2}
+              width="7"
+              height={height}
+              rx="3.5"
+              style={{ transform: `scaleY(${scale})` }}
+            />
+          ))
+        ) : mood === "thinking" ? (
+          [0, 1, 2].map((index) => (
+            <circle
+              key={index}
+              className="think-dot"
+              cx={100 + index * 20}
+              cy="158"
+              r="6"
+              style={{ animationDelay: `${index * 0.16}s` }}
+            />
+          ))
+        ) : (
+          <path className="mouth" d={MOUTH[mood]} />
+        )}
       </svg>
     </div>
   );
@@ -599,12 +649,7 @@ function ListeningState({ machine }: { machine: MachineState }) {
         </div>
       </div>
       <div className="listening-copy">
-        <BartenderFace mood="listening" size="medium" />
-        <div className="sound-wave" aria-hidden="true">
-          {[30, 54, 78, 44, 92, 62, 36].map((height, index) => (
-            <i key={index} style={{ height }} />
-          ))}
-        </div>
+        <BartenderFace mood="listening" size="medium" level={level} />
         <h1>I’m listening…</h1>
         <p>Keep talking naturally.</p>
         <div className="elapsed">
