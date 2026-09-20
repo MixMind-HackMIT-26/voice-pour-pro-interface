@@ -1,8 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Check, GlassWater, Mic, X, ArrowLeft, Zap } from "lucide-react";
 
 type MachineStateName =
   | "idle"
+  | "greeting"
+  | "sample_ready"
+  | "sampling"
+  | "feedback"
+  | "final_ready"
+  | "cancelled"
   | "listening"
   | "thinking"
   | "reveal"
@@ -30,6 +37,18 @@ type Recipe = {
 };
 
 type MachineState = {
+  mode?: "quick" | "mixed";
+  speech?: string | null;
+  session_id?: string;
+  version?: number;
+  updates_left?: number;
+  allowed_actions?: string[];
+  mixed_available?: boolean;
+  sample_ratio?: number;
+  samples_enabled?: boolean;
+  sample_recipe?: Recipe;
+  cup?: { hint: string; max_ml: number };
+  ranges?: Record<string, [number, number]>;
   state: MachineStateName;
   level_db: number;
   elapsed_s: number;
@@ -50,10 +69,10 @@ type MachineState = {
 const ingredients = {
   "1": "Orange juice",
   "2": "Cranberry",
-  "3": "Grapefruit",
-  "4": "Iced tea",
-  "5": "Apple juice",
-  "6": "Ginger ale",
+  "3": "Lime cordial",
+  "4": "Ginger ale",
+  "5": "Grape juice",
+  "6": "Apple juice",
 };
 
 const features: VoiceFeatures = {
@@ -70,13 +89,14 @@ const features: VoiceFeatures = {
 const recipe: Recipe = {
   name: "Running On Empty",
   mood: "depleted",
-  rationale: "You took your time and your voice stayed level — something bright, gentle, and restoring felt right.",
+  rationale:
+    "You took your time and your voice stayed level — something bright, gentle, and restoring felt right.",
   pours: [
     { channel: 1, ml: 45 },
-    { channel: 5, ml: 50 },
-    { channel: 6, ml: 60 },
+    { channel: 5, ml: 30 },
+    { channel: 6, ml: 40 },
   ],
-  stir_seconds: 6,
+  stir_seconds: 0,
 };
 
 const baseState: MachineState = {
@@ -105,7 +125,10 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "MixMind — Voice-matched drinks" },
-      { name: "description", content: "MixMind listens, understands, and mixes a drink to match your voice." },
+      {
+        name: "description",
+        content: "MixMind listens, understands, and mixes a drink to match your voice.",
+      },
       { property: "og:title", content: "MixMind" },
       { property: "og:description", content: "A voice-matched drink experience." },
       { property: "og:type", content: "website" },
@@ -176,6 +199,11 @@ function getDemoState(epoch: number, now: number): MachineState {
 function MixMindKiosk() {
   const [isDemo, setIsDemo] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
+  const [disconnected, setDisconnected] = useState(false);
+  const [actionPending, setActionPending] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const liveConnected = useRef(false);
+  const demoMixed = useRef(false);
   const [machine, setMachine] = useState<MachineState>(baseState);
   const [now, setNow] = useState(Date.now());
   const demoEpoch = useRef(Date.now());
@@ -196,10 +224,14 @@ function MixMindKiosk() {
   // The clock re-renders the whole page, so it runs only where something moves
   // with time: the demo, "thinking" and "pouring". Ticking at 50 ms on every
   // screen kept the Pi's Chromium at ~85% CPU on the idle screen.
-  const clockNeeded = (isDemo && demoRunning) || machine.state === "thinking" || machine.state === "pouring";
+  const clockNeeded =
+    (isDemo && demoRunning) ||
+    machine.state === "thinking" ||
+    machine.state === "pouring" ||
+    machine.state === "sampling";
   useEffect(() => {
     if (!clockNeeded) return;
-    setNow(Date.now());                    // don't start from a stale time
+    setNow(Date.now()); // don't start from a stale time
     const clock = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(clock);
   }, [clockNeeded]);
@@ -207,10 +239,23 @@ function MixMindKiosk() {
   useEffect(() => {
     if (!isDemo) return;
     if (!demoRunning) {
-      setMachine(baseState);
       return;
     }
     const nextState = getDemoState(demoEpoch.current, now);
+    if (demoMixed.current && ["reveal", "pouring", "serving"].includes(nextState.state)) {
+      setDemoRunning(false);
+      setMachine({
+        ...nextState,
+        state: "sample_ready",
+        mode: "mixed",
+        version: 1,
+        updates_left: 2,
+        session_id: "demo",
+        allowed_actions: ["sample", "finish", "cancel"],
+        speech: "Your drink pairs orange with grape and apple. How does that balance sound?",
+      });
+      return;
+    }
     setMachine(nextState);
     if (now - demoEpoch.current >= demoCycleDuration) setDemoRunning(false);
   }, [demoRunning, isDemo, now]);
@@ -224,8 +269,13 @@ function MixMindKiosk() {
         const response = await fetch("/api/state", { cache: "no-store" });
         if (!response.ok) throw new Error("Machine unavailable");
         const text = await response.text();
+        const snapshot = JSON.parse(text) as MachineState;
+        if (!snapshot.state || !snapshot.ingredients) throw new Error("Invalid machine state");
         if (cancelled) return;
-        if (isDemo) {                      // the backend is back: leave demo
+        liveConnected.current = true;
+        setDisconnected(false);
+        if (isDemo) {
+          // the backend is back: leave demo
           setIsDemo(false);
           setDemoRunning(false);
         }
@@ -233,10 +283,12 @@ function MixMindKiosk() {
         // it answers the same thing five times a second.
         if (text !== lastState.current) {
           lastState.current = text;
-          setMachine(JSON.parse(text) as MachineState);
+          setMachine(snapshot);
         }
       } catch {
-        if (!cancelled && !isDemo) {
+        if (!cancelled && liveConnected.current) {
+          setDisconnected(true);
+        } else if (!cancelled && !isDemo) {
           demoEpoch.current = Date.now();
           setIsDemo(true);
         }
@@ -251,21 +303,105 @@ function MixMindKiosk() {
     };
   }, [isDemo]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(
+    async (mode: "quick" | "mixed") => {
+      if (isDemo) {
+        demoMixed.current = mode === "mixed";
+        demoEpoch.current = Date.now() - demoStages[0].duration;
+        setDemoRunning(true);
+        setNow(Date.now());
+        return;
+      }
+      setActionPending(true);
+      setActionError("");
+      try {
+        const response = await fetch("/api/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode }),
+        });
+        if (!response.ok) throw new Error("The machine could not start this session.");
+      } catch {
+        setActionError("The machine could not start this session. Please try again.");
+      } finally {
+        setActionPending(false);
+      }
+    },
+    [isDemo],
+  );
+
+  const act = async (action: string) => {
     if (isDemo) {
-      demoEpoch.current = Date.now() - demoStages[0].duration;
-      setDemoRunning(true);
-      setNow(Date.now());
+      const current = machine.recipe ?? recipe;
+      if (action === "cancel") {
+        setMachine(baseState);
+        return;
+      }
+      if (action === "finish") {
+        setMachine({
+          ...machine,
+          state: "final_ready",
+          speech: "Place a fresh cup with ice under the spouts.",
+          allowed_actions: ["pour", "back", "cancel"],
+        });
+        return;
+      }
+      if (action === "pour") {
+        setMachine({
+          ...machine,
+          state: "serving",
+          speech: "That is yours. Give it a stir and mind the ice.",
+          allowed_actions: [],
+        });
+        window.setTimeout(() => setMachine(baseState), 7000);
+        return;
+      }
+      if (action === "feedback" && (machine.version ?? 1) < 3) {
+        const nextVersion = (machine.version ?? 1) + 1;
+        const nextRecipe = {
+          ...current,
+          pours: current.pours.map((p) => ({
+            ...p,
+            ml: p.channel === 1 ? p.ml + 5 : p.channel === 5 ? p.ml - 5 : p.ml,
+          })),
+        };
+        setMachine({
+          ...machine,
+          recipe: nextRecipe,
+          version: nextVersion,
+          updates_left: 3 - nextVersion,
+          state: "sample_ready",
+          speech: "This version has less grape and more orange. Is that closer?",
+          allowed_actions: ["sample", "finish", "cancel"],
+        });
+        return;
+      }
+      setMachine({
+        ...machine,
+        state: "feedback",
+        speech:
+          (machine.version ?? 1) < 3
+            ? "Give your sample a stir and a taste. What would you change?"
+            : "Shall I make the full drink?",
+        allowed_actions: ["feedback", "finish", "cancel"],
+      });
       return;
     }
+    setActionPending(true);
+    setActionError("");
     try {
-      await fetch("/api/start", { method: "POST" });
+      const response = await fetch("/api/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, session_id: machine.session_id, version: machine.version }),
+      });
+      if (!response.ok) throw new Error("Action unavailable");
     } catch {
-      demoEpoch.current = Date.now() - demoStages[0].duration;
-      setIsDemo(true);
-      setDemoRunning(true);
+      setActionError("That action is unavailable. Please wait for the machine and try again.");
+    } finally {
+      setActionPending(false);
     }
-  }, [isDemo]);
+  };
 
   const reset = useCallback(async () => {
     if (isDemo) {
@@ -275,10 +411,10 @@ function MixMindKiosk() {
       return;
     }
     try {
-      await fetch("/api/reset", { method: "POST" });
+      const response = await fetch("/api/reset", { method: "POST" });
+      if (!response.ok) throw new Error("Reset unavailable");
     } catch {
-      demoEpoch.current = Date.now();
-      setIsDemo(true);
+      setActionError("The machine cannot reset yet.");
     }
   }, [isDemo]);
 
@@ -289,16 +425,72 @@ function MixMindKiosk() {
         {isDemo && <span className="demo-tag">DEMO</span>}
       </div>
       <div className="state-stage" key={machine.state}>
-        {machine.state === "idle" && <IdleState onStart={start} />}
-        {machine.state === "listening" && <ListeningState machine={machine} />}
-        {machine.state === "thinking" && <ThinkingState features={machine.features ?? features} now={now} />}
-        {machine.state === "reveal" && (
-          <RevealState recipe={machine.recipe ?? recipe} features={machine.features ?? features} />
+        {machine.state === "idle" && (
+          <IdleState
+            onStart={start}
+            disabled={actionPending || disconnected}
+            mixedAvailable={isDemo || machine.mixed_available !== false}
+            cup={machine.cup?.hint}
+          />
         )}
-        {machine.state === "pouring" && <PouringState machine={machine} now={now} />}
+        {machine.state === "greeting" && (
+          <section className="conversation-state">
+            <BartenderFace mood="ready" size="medium" />
+            <h1>{machine.speech}</h1>
+          </section>
+        )}
+        {machine.state === "listening" && <ListeningState machine={machine} />}
+        {machine.state === "thinking" && (
+          <ThinkingState features={machine.features} ranges={machine.ranges} now={now} />
+        )}
+        {machine.state === "reveal" && (
+          <RevealState
+            recipe={machine.recipe ?? recipe}
+            features={machine.features ?? features}
+            speech={machine.speech}
+            ranges={machine.ranges}
+          />
+        )}
+        {(machine.state === "pouring" || machine.state === "sampling") && (
+          <PouringState
+            machine={
+              machine.state === "sampling"
+                ? { ...machine, recipe: machine.sample_recipe ?? machine.recipe }
+                : machine
+            }
+            now={now}
+          />
+        )}
+        {["sample_ready", "feedback", "final_ready"].includes(machine.state) && (
+          <NegotiationState
+            machine={machine}
+            onAction={act}
+            disabled={actionPending || disconnected}
+          />
+        )}
+        {machine.state === "cancelled" && (
+          <section className="conversation-state">
+            <BartenderFace mood="ready" size="medium" />
+            <h1>{machine.speech}</h1>
+          </section>
+        )}
         {machine.state === "serving" && <ServingState recipe={machine.recipe ?? recipe} />}
         {machine.state === "error" && <ErrorState message={machine.error} onReset={reset} />}
       </div>
+      {machine.speech && ["pouring", "serving"].includes(machine.state) && (
+        <div className="speech-caption">{machine.speech}</div>
+      )}
+      {actionError && (
+        <div className="action-error" role="alert" onClick={() => setActionError("")}>
+          {actionError}
+        </div>
+      )}
+      {disconnected && (
+        <div className="connection-overlay" role="alert">
+          <h1>Reconnecting to MixMind...</h1>
+          <p>Your session is still on the machine.</p>
+        </div>
+      )}
     </main>
   );
 }
@@ -317,9 +509,16 @@ function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-type BartenderMood = "ready" | "listening" | "thinking" | "pleased" | "focused" | "celebrating" | "concerned";
+type BartenderMood =
+  "ready" | "listening" | "thinking" | "pleased" | "focused" | "celebrating" | "concerned";
 
-function BartenderFace({ mood, size = "large" }: { mood: BartenderMood; size?: "small" | "medium" | "large" }) {
+function BartenderFace({
+  mood,
+  size = "large",
+}: {
+  mood: BartenderMood;
+  size?: "small" | "medium" | "large";
+}) {
   return (
     <div className={`bartender-face bartender-${mood} bartender-${size}`} aria-hidden="true">
       <svg viewBox="0 0 240 240" fill="none">
@@ -327,8 +526,14 @@ function BartenderFace({ mood, size = "large" }: { mood: BartenderMood; size?: "
         <circle className="aura aura-inner" cx="120" cy="120" r="94" />
         <path className="shoulders" d="M46 226c13-36 39-52 74-52s61 16 74 52" />
         <path className="jacket" d="m86 181 34 31 34-31M120 212v14" />
-        <path className="face-line" d="M70 61c11-25 31-38 50-38s39 13 50 38v56c0 42-23 72-50 72s-50-30-50-72V61Z" />
-        <path className="hair" d="M70 71c2-34 24-52 50-52 27 0 48 19 51 52-16-6-28-18-37-34-13 20-35 30-64 34Z" />
+        <path
+          className="face-line"
+          d="M70 61c11-25 31-38 50-38s39 13 50 38v56c0 42-23 72-50 72s-50-30-50-72V61Z"
+        />
+        <path
+          className="hair"
+          d="M70 71c2-34 24-52 50-52 27 0 48 19 51 52-16-6-28-18-37-34-13 20-35 30-64 34Z"
+        />
         <path className="brow brow-left" d="M86 91c8-5 17-5 24 0" />
         <path className="brow brow-right" d="M130 91c8-5 17-5 24 0" />
         <path className="eye eye-left" d="M87 106c7-7 16-7 23 0" />
@@ -341,16 +546,42 @@ function BartenderFace({ mood, size = "large" }: { mood: BartenderMood; size?: "
   );
 }
 
-function IdleState({ onStart }: { onStart: () => void }) {
+function IdleState({
+  onStart,
+  disabled,
+  mixedAvailable,
+  cup,
+}: {
+  onStart: (mode: "quick" | "mixed") => void;
+  disabled: boolean;
+  mixedAvailable: boolean;
+  cup?: string | undefined;
+}) {
   return (
-    <button className="idle-touch" onClick={onStart} type="button">
-      <div className="idle-mark"><Logo /></div>
+    <section className="idle-touch">
+      <div className="idle-mark">
+        <Logo />
+      </div>
       <div className="idle-persona">
         <BartenderFace mood="ready" />
-        <div className="idle-greeting"><span>YOUR PERSONAL MIXOLOGIST</span><strong>Good evening.</strong><p>Tell me about your day and I’ll craft your drink.</p></div>
+        <div className="idle-greeting">
+          <span>YOUR PERSONAL MIXOLOGIST</span>
+          <strong>Good evening.</strong>
+          <p>Tell me about your day and I’ll craft your drink.</p>
+        </div>
       </div>
-      <div className="tap-invitation"><i aria-hidden="true" /><strong>Tap to speak</strong></div>
-    </button>
+      <div className="mode-actions">
+        <button disabled={disabled} onClick={() => onStart("quick")}>
+          <Zap />
+          Quick Mix
+        </button>
+        <button disabled={disabled || !mixedAvailable} onClick={() => onStart("mixed")}>
+          <GlassWater />
+          Taste &amp; Tune
+        </button>
+      </div>
+      {cup && <p className="cup-hint">{cup}</p>}
+    </section>
   );
 }
 
@@ -359,34 +590,90 @@ function ListeningState({ machine }: { machine: MachineState }) {
   return (
     <section className="listening-layout">
       <div className="meter-wrap" aria-label={`Microphone level ${Math.round(level)} percent`}>
-        <div className="meter-scale"><span>LOUD</span><span>QUIET</span></div>
-        <div className="level-meter"><div style={{ height: `${level}%` }} /></div>
+        <div className="meter-scale">
+          <span>LOUD</span>
+          <span>QUIET</span>
+        </div>
+        <div className="level-meter">
+          <div style={{ height: `${level}%` }} />
+        </div>
       </div>
       <div className="listening-copy">
         <BartenderFace mood="listening" size="medium" />
-        <div className="sound-wave" aria-hidden="true">{[30, 54, 78, 44, 92, 62, 36].map((height, index) => <i key={index} style={{ height }} />)}</div>
+        <div className="sound-wave" aria-hidden="true">
+          {[30, 54, 78, 44, 92, 62, 36].map((height, index) => (
+            <i key={index} style={{ height }} />
+          ))}
+        </div>
         <h1>I’m listening…</h1>
         <p>Keep talking naturally.</p>
-        <div className="elapsed"><strong>{Math.min(25, machine.elapsed_s).toFixed(1)}</strong><span>/ 25 seconds</span></div>
+        <div className="elapsed">
+          <strong>{Math.min(25, machine.elapsed_s).toFixed(1)}</strong>
+          <span>/ 25 seconds</span>
+        </div>
       </div>
     </section>
   );
 }
 
-type VoiceDial = { label: string; low: string; high: string; value: number; readings: [string, string, string]; hints: [string, string, string] };
+type VoiceDial = {
+  label: string;
+  low: string;
+  high: string;
+  value: number;
+  readings: [string, string, string];
+  hints: [string, string, string];
+};
 
 function normalize(value: number, low: number, high: number) {
   return Math.max(0, Math.min(1, (value - low) / (high - low)));
 }
 
-function voiceDials(value: VoiceFeatures): VoiceDial[] {
-  const energy = 0.5 * normalize(value.loudness_db, -32, -12) + 0.5 * normalize(value.onset_rate_hz, 0.5, 2.1);
-  const halting = normalize(value.pause_ratio, 0.018, 0.143);
-  const animated = normalize(value.pitch_sd_hz, 19, 26.7);
+function voiceDials(value: VoiceFeatures, ranges?: Record<string, [number, number]>): VoiceDial[] {
+  const energy =
+    0.5 *
+      normalize(
+        value.loudness_db,
+        ...(ranges?.["loudness_db"] ?? ([-32, -12] as [number, number])),
+      ) +
+    0.5 *
+      normalize(
+        value.onset_rate_hz,
+        ...(ranges?.["onset_rate_hz"] ?? ([0.5, 2.1] as [number, number])),
+      );
+  const halting = normalize(
+    value.pause_ratio,
+    ...(ranges?.["pause_ratio"] ?? ([0.018, 0.143] as [number, number])),
+  );
+  const animated = normalize(
+    value.pitch_sd_hz,
+    ...(ranges?.["pitch_sd_hz"] ?? ([19, 26.7] as [number, number])),
+  );
   return [
-    { label: "Energy", low: "low", high: "high", value: energy, readings: ["running low", "even keel", "fired up"], hints: ["dark sweet comfort + warm spiced", "", "tart red + sparkling"] },
-    { label: "Flow", low: "steady", high: "halting", value: halting, readings: ["straight through", "a few pauses", "choosing words carefully"], hints: ["warm spiced", "", "bright citrus base"] },
-    { label: "Tone", low: "flat", high: "lively", value: animated, readings: ["flat, tired", "relaxed", "animated"], hints: ["", "", "sharp sour accent"] },
+    {
+      label: "Energy",
+      low: "low",
+      high: "high",
+      value: energy,
+      readings: ["running low", "even keel", "fired up"],
+      hints: ["dark sweet comfort + warm spiced", "", "tart red + sparkling"],
+    },
+    {
+      label: "Flow",
+      low: "steady",
+      high: "halting",
+      value: halting,
+      readings: ["straight through", "a few pauses", "choosing words carefully"],
+      hints: ["warm spiced", "", "bright citrus base"],
+    },
+    {
+      label: "Tone",
+      low: "flat",
+      high: "lively",
+      value: animated,
+      readings: ["level pitch", "varied pitch", "animated"],
+      hints: ["", "", "sharp sour accent"],
+    },
   ];
 }
 
@@ -396,17 +683,38 @@ function dialBand(value: number) {
 
 function VoiceDialRow({ dial, delay = 0 }: { dial: VoiceDial; delay?: number }) {
   const band = dialBand(dial.value);
-  const markerStyle = { "--dial-position": `${dial.value * 100}%`, animationDelay: `${delay}ms` } as CSSProperties;
+  const markerStyle = {
+    "--dial-position": `${dial.value * 100}%`,
+    animationDelay: `${delay}ms`,
+  } as CSSProperties;
   return (
     <div className="voice-dial">
-      <div className="dial-heading"><strong>{dial.label}</strong><span>{dial.low}</span><i /><span>{dial.high}</span></div>
-      <div className="dial-track"><i style={markerStyle} /></div>
-      <div className="dial-reading"><strong>{dial.readings[band]}</strong>{dial.hints[band] && <span>→ {dial.hints[band]}</span>}</div>
+      <div className="dial-heading">
+        <strong>{dial.label}</strong>
+        <span>{dial.low}</span>
+        <i />
+        <span>{dial.high}</span>
+      </div>
+      <div className="dial-track">
+        <i style={markerStyle} />
+      </div>
+      <div className="dial-reading">
+        <strong>{dial.readings[band]}</strong>
+        {dial.hints[band] && <span>→ {dial.hints[band]}</span>}
+      </div>
     </div>
   );
 }
 
-function VoiceRead({ value, showRaw = false }: { value: VoiceFeatures; showRaw?: boolean }) {
+function VoiceRead({
+  value,
+  showRaw = false,
+  ranges,
+}: {
+  value: VoiceFeatures;
+  showRaw?: boolean;
+  ranges?: Record<string, [number, number]> | undefined;
+}) {
   const raw = [
     ["Pitch", `${Math.round(value.pitch_mean_hz)} Hz`],
     ["Pitch wobble", `${value.pitch_sd_hz.toFixed(1)} Hz`],
@@ -417,24 +725,62 @@ function VoiceRead({ value, showRaw = false }: { value: VoiceFeatures; showRaw?:
   ];
   return (
     <div className="voice-read">
-      {voiceDials(value).map((dial, index) => <VoiceDialRow key={dial.label} dial={dial} delay={index * 110} />)}
-      {showRaw && <details className="raw-readings"><summary>Show the numbers</summary><div>{raw.map(([label, reading]) => <p key={label}><span>{label}</span><strong>{reading}</strong></p>)}</div></details>}
+      {voiceDials(value, ranges).map((dial, index) => (
+        <VoiceDialRow key={dial.label} dial={dial} delay={index * 110} />
+      ))}
+      {showRaw && (
+        <details className="raw-readings">
+          <summary>Show the numbers</summary>
+          <div>
+            {raw.map(([label, reading]) => (
+              <p key={label}>
+                <span>{label}</span>
+                <strong>{reading}</strong>
+              </p>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
 
-function ThinkingState({ features: value, now }: { features: VoiceFeatures; now: number }) {
+function ThinkingState({
+  features: value,
+  now,
+  ranges,
+}: {
+  features: VoiceFeatures | null;
+  now: number;
+  ranges?: Record<string, [number, number]> | undefined;
+}) {
   void now;
   return (
     <section className="thinking-layout">
-      <header><div><p>READING YOUR VOICE</p><h1>Finding your mix…</h1></div><BartenderFace mood="thinking" size="small" /></header>
-      <VoiceRead value={value} />
+      <header>
+        <div>
+          <p>READING YOUR VOICE</p>
+          <h1>Finding your mix…</h1>
+        </div>
+        <BartenderFace mood="thinking" size="small" />
+      </header>
+      {value && <VoiceRead value={value} ranges={ranges} />}
       <div className="shimmer-line" aria-label="Analysis in progress" />
     </section>
   );
 }
 
-function RevealState({ recipe: value, features: featureValues }: { recipe: Recipe; features: VoiceFeatures }) {
+function RevealState({
+  recipe: value,
+  features: featureValues,
+  speech,
+  ranges,
+}: {
+  recipe: Recipe;
+  features: VoiceFeatures;
+  speech?: string | null | undefined;
+  ranges?: Record<string, [number, number]> | undefined;
+}) {
   return (
     <section className="reveal-layout">
       <div className="reveal-main">
@@ -444,8 +790,8 @@ function RevealState({ recipe: value, features: featureValues }: { recipe: Recip
         <span className="mood-chip">{value.mood}</span>
       </div>
       <aside className="proof-panel">
-        <p className="bartender-read">“{value.rationale}”</p>
-        <VoiceRead value={featureValues} showRaw />
+        <p className="bartender-read">{speech === undefined ? value.rationale : speech}</p>
+        <VoiceRead value={featureValues} showRaw ranges={ranges} />
       </aside>
     </section>
   );
@@ -453,7 +799,9 @@ function RevealState({ recipe: value, features: featureValues }: { recipe: Recip
 
 function PouringState({ machine, now }: { machine: MachineState; now: number }) {
   // pour.index counts from 1; activeIndex counts from 0
-  const activeIndex = machine.pour ? Math.max(0, machine.pour.index - 1) : machine.recipe?.pours.length ?? 0;
+  const activeIndex = machine.pour
+    ? Math.max(0, machine.pour.index - 1)
+    : (machine.recipe?.pours.length ?? 0);
   const currentProgress = machine.pour
     ? Math.max(0, Math.min(1, (now - machine.pour.started_at_ms) / machine.pour.duration_ms))
     : 1;
@@ -465,26 +813,48 @@ function PouringState({ machine, now }: { machine: MachineState; now: number }) 
     <section className="pour-layout">
       <header>
         <BartenderFace mood="focused" size="medium" />
-        <p>{pouringComplete ? "ALL POURS COMPLETE" : `POUR ${activeIndex + 1} OF ${pours.length}`}</p>
-        <h1>{pouringComplete ? "Drink complete" : machine.ingredients[String(machine.pour?.channel)]}</h1>
-        {!pouringComplete && <strong>{currentMl} / {machine.pour?.ml ?? 0} ml</strong>}
+        <p>
+          {pouringComplete ? "ALL POURS COMPLETE" : `POUR ${activeIndex + 1} OF ${pours.length}`}
+        </p>
+        <h1>
+          {pouringComplete ? "Drink complete" : machine.ingredients[String(machine.pour?.channel)]}
+        </h1>
+        {!pouringComplete && (
+          <strong>
+            {currentMl} / {machine.pour?.ml ?? 0} ml
+          </strong>
+        )}
       </header>
       <div className="pour-bars">
         {/* one bar per pump the machine has, not per ingredient in the drink:
             the pumps this drink does not use stay dim and empty */}
-        {Object.keys(machine.ingredients).map(Number).sort((a, b) => a - b).map((channel) => {
-          const order = pours.findIndex((p) => p.channel === channel);
-          const pour = order < 0 ? null : pours[order];
-          const fill = !pour ? 0 : order < activeIndex ? 1 : order === activeIndex ? currentProgress : 0;
-          const active = pour !== null && order === activeIndex && !pouringComplete;
-          return (
-            <div className={`pour-item${active ? " active" : ""}${pour ? "" : " unused"}`} key={channel}>
-              <div className="pour-vessel"><i style={{ height: `${fill * 100}%` }} /></div>
-              <span>{machine.ingredients[String(channel)]}</span>
-              <strong>{pour ? `${pour.ml} ml` : "—"}</strong>
-            </div>
-          );
-        })}
+        {Object.keys(machine.ingredients)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .map((channel) => {
+            const order = pours.findIndex((p) => p.channel === channel);
+            const pour = order < 0 ? null : pours[order];
+            const fill = !pour
+              ? 0
+              : order < activeIndex
+                ? 1
+                : order === activeIndex
+                  ? currentProgress
+                  : 0;
+            const active = pour !== null && order === activeIndex && !pouringComplete;
+            return (
+              <div
+                className={`pour-item${active ? " active" : ""}${pour ? "" : " unused"}`}
+                key={channel}
+              >
+                <div className="pour-vessel">
+                  <i style={{ height: `${fill * 100}%` }} />
+                </div>
+                <span>{machine.ingredients[String(channel)]}</span>
+                <strong>{pour ? `${pour.ml} ml` : "—"}</strong>
+              </div>
+            );
+          })}
       </div>
     </section>
   );
@@ -494,7 +864,11 @@ function ServingState({ recipe: value }: { recipe: Recipe }) {
   return (
     <section className="serving-layout">
       <BartenderFace mood="celebrating" />
-      <div><p>IT’S READY</p><h1>Take your drink</h1><h2>{value.name}</h2></div>
+      <div>
+        <p>IT’S READY</p>
+        <h1>Take your drink</h1>
+        <h2>{value.name}</h2>
+      </div>
     </section>
   );
 }
@@ -505,7 +879,99 @@ function ErrorState({ message, onReset }: { message: string | null; onReset: () 
       <BartenderFace mood="concerned" size="medium" />
       <h1>Something interrupted the mix.</h1>
       <p>{message || "Please check the machine, then try once more."}</p>
-      <button type="button" onClick={onReset}>Try again</button>
+      <button type="button" onClick={onReset}>
+        Try again
+      </button>
+    </section>
+  );
+}
+
+function NegotiationState({
+  machine,
+  onAction,
+  disabled,
+}: {
+  machine: MachineState;
+  onAction: (action: string) => void;
+  disabled: boolean;
+}) {
+  const labels: Record<string, string> = {
+    sample: "Cup ready: taste",
+    feedback: "Give feedback",
+    finish: "Pour this drink",
+    pour: "Cup ready: pour",
+    cancel: "Cancel",
+    back: "Back",
+  };
+  const icons: Record<string, typeof Mic> = {
+    sample: GlassWater,
+    feedback: Mic,
+    finish: Check,
+    pour: GlassWater,
+    cancel: X,
+    back: ArrowLeft,
+  };
+  const total = machine.recipe?.pours.reduce((sum, p) => sum + p.ml, 0) ?? 0;
+  return (
+    <section className="negotiation-layout">
+      <header>
+        <div>
+          <p className="eyebrow">
+            TASTE &amp; TUNE ·{" "}
+            {machine.version ? `VERSION ${machine.version} OF 3` : "YOUR PREFERENCES"}
+          </p>
+          <h1>{machine.recipe?.name ?? "Finding your mix"}</h1>
+        </div>
+        <BartenderFace mood="pleased" size="small" />
+      </header>
+      <div className="negotiation-body">
+        <div>
+          <p className="negotiation-message">{machine.speech}</p>
+          {(machine.state === "sample_ready" || machine.allowed_actions?.includes("sample")) && (
+            <p className="sample-cup">
+              {machine.samples_enabled === false ? (
+                "Tasting is unavailable on this machine."
+              ) : (
+                <>
+                  Place a separate tasting cup under the spouts.
+                  <br />
+                  Sample: {(total * (machine.sample_ratio ?? 0.08)).toFixed(2)} mL
+                </>
+              )}
+            </p>
+          )}
+        </div>
+        <ul>
+          {machine.recipe?.pours.map((p) => (
+            <li key={p.channel}>
+              <span>{machine.ingredients[String(p.channel)]}</span>
+              <strong>{p.ml} mL</strong>
+            </li>
+          ))}
+          {total > 0 && (
+            <li>
+              <span>Final serving</span>
+              <strong>{total} mL</strong>
+            </li>
+          )}
+        </ul>
+      </div>
+      <div className="session-actions">
+        {(machine.allowed_actions ?? []).map((action) => {
+          const Icon = icons[action] ?? Check;
+          return (
+            <button
+              key={action}
+              disabled={disabled}
+              onClick={() => onAction(action)}
+              className={action === "cancel" ? "secondary" : ""}
+            >
+              <Icon />
+              {labels[action]}
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }

@@ -40,6 +40,28 @@ html, body {
 }
 
 button { font: inherit; -webkit-tap-highlight-color: transparent; }
+button:disabled { opacity: .45; cursor: default; }
+.mode-actions { position: absolute; bottom: 66px; left: 400px; right: 40px; display: flex; gap: 16px; }
+.mode-actions button, .session-actions button { min-height: 68px; border: 1px solid var(--primary); background: var(--primary); color: var(--primary-foreground); padding: 12px 20px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 22px; font-weight: 700; border-radius: 4px; }
+.mode-actions button { flex: 1; }
+.cup-hint { position: absolute; bottom: 12px; right: 40px; left: 40px; text-align: right; font-size: 20px; color: var(--muted-foreground); }
+.conversation-state { height: 100%; padding: 100px 80px 60px; display: flex; align-items: center; justify-content: center; gap: 40px; }
+.conversation-state h1 { font-size: 36px; max-width: 640px; line-height: 1.3; }
+.negotiation-layout { height: 100%; padding: 82px 40px 30px; display: flex; flex-direction: column; gap: 22px; }
+.negotiation-layout header { display: flex; justify-content: space-between; align-items: center; min-height: 100px; }
+.negotiation-layout h1 { font-size: 36px; line-height: 1.15; margin: 10px 0; overflow-wrap: anywhere; }
+.negotiation-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; }
+.negotiation-message { font-size: 25px; line-height: 1.35; margin: 0; overflow-wrap: anywhere; }
+.sample-cup { font-size: 21px; line-height: 1.4; color: var(--primary); }
+.negotiation-body ul { margin: 0; padding: 0; list-style: none; }
+.negotiation-body li { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); padding: 7px 0; font-size: 20px; }
+.session-actions { display: flex; gap: 12px; min-height: 68px; }
+.session-actions button { flex: 1; }
+.session-actions .secondary { flex: 0 0 145px; background: transparent; color: var(--foreground); border-color: var(--border); }
+.speech-caption { position: absolute; bottom: 8px; left: 30px; right: 30px; text-align: center; font-size: 20px; background: var(--background); padding: 8px; }
+.action-error { position: absolute; z-index: 20; bottom: 0; left: 0; right: 0; background: #702c2c; padding: 18px 30px; font-size: 21px; }
+.connection-overlay { position: absolute; inset: 0; z-index: 30; background: var(--background); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.connection-overlay h1 { font-size: 36px; }.connection-overlay p { font-size: 24px; }
 
 .kiosk-shell {
   position: relative;
@@ -136,7 +158,7 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 .level-meter div { position: absolute; bottom: 0; width: 100%; background: linear-gradient(to top, var(--primary), var(--foreground)); transition: height 100ms linear; }
 .listening-copy { align-self: center; position: relative; padding-left: 205px; }
 .listening-copy .bartender-face { position: absolute; left: 0; top: -34px; }
-.listening-copy h1 { margin: 24px 0 8px; font-size: 66px; line-height: .95; letter-spacing: 0; }
+.listening-copy h1 { margin: 24px 0 8px; font-size: 44px; line-height: 1.3; letter-spacing: 0; }
 .listening-copy p { margin: 0; color: var(--muted-foreground); font-size: 27px; }
 .sound-wave { height: 76px; display: flex; align-items: center; gap: 10px; }
 .sound-wave i { display: block; width: 10px; background: var(--primary); animation: wave 850ms ease-in-out infinite alternate; }
@@ -207,7 +229,7 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 .pour-item.active .pour-vessel { border-color: var(--primary); box-shadow: 0 0 28px color-mix(in oklch, var(--primary) 18%, transparent); }
 .serving-layout { height: 100%; display: flex; justify-content: center; align-items: center; gap: 72px; padding-top: 42px; }
 .serving-layout .bartender-face { width: 310px; height: 310px; }
-.serving-layout h1 { margin: 8px 0 12px; font-size: 70px; line-height: .95; }
+.serving-layout h1 { margin: 8px 0 12px; font-size: 58px; line-height: 1.3; }
 .serving-layout h2 { margin: 0; color: var(--primary); font-size: 34px; }
 
 .error-layout { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }

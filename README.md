@@ -1,5 +1,22 @@
 # MixMind Voice Bar
 
+## Integrated kiosk modes
+
+The current UI offers **Quick Mix** (the existing one-pass workflow) and
+**Taste & Tune** (Gemini-assisted tasting and up to two revisions). It renders
+the backend greeting and spoken text, uses backend calibration ranges, and
+keeps the fixed 1024x600 touchscreen layout. Taste & Tune includes separate
+sample-cup and final-cup confirmation; samples are 0.08x the proposed recipe.
+
+The original design brief below is historical. The backend now exposes extra
+session states and `/api/action`; see `voice_decipher_2/README.md` for the contract.
+The UI itself needs no external assets or API keys. Optional cloud features run
+on the backend. `?demo=1` previews both modes without pumps. A live connection
+failure shows reconnection, not a fake dispensing sequence.
+
+For local backend development, set `MIXMIND_API_URL=http://127.0.0.1:8090`
+before `npm run dev`; the Vite proxy forwards `/api` to that backend.
+
 Build a single-screen kiosk UI for "MixMind", a drink-mixing machine that
 
 listens to how someone speaks and pours them a drink.
