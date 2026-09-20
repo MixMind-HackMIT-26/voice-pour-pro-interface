@@ -44,6 +44,7 @@ type MachineState = {
   updates_left?: number;
   allowed_actions?: string[];
   mixed_available?: boolean;
+  mixed_start_endpoint?: string;
   sample_ratio?: number;
   samples_enabled?: boolean;
   sample_recipe?: Recipe;
@@ -315,19 +316,35 @@ function MixMindKiosk() {
       setActionPending(true);
       setActionError("");
       try {
-        const response = await fetch("/api/start", {
+        if (
+          mode === "mixed" &&
+          (machine.mixed_available !== true || machine.mixed_start_endpoint !== "/api/start/mixed")
+        ) {
+          throw new Error(
+            "Taste & Tune requires the updated backend and its OpenRouter configuration.",
+          );
+        }
+        const response = await fetch(mode === "mixed" ? "/api/start/mixed" : "/api/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ mode }),
         });
         if (!response.ok) throw new Error("The machine could not start this session.");
-      } catch {
-        setActionError("The machine could not start this session. Please try again.");
+        const result = await response.json();
+        if (mode === "mixed" && (result.ok !== true || result.mode !== "mixed")) {
+          throw new Error(
+            "The backend did not confirm Taste & Tune. Please update and restart the backend.",
+          );
+        }
+      } catch (error) {
+        setActionError(
+          error instanceof Error ? error.message : "The machine could not start this session.",
+        );
       } finally {
         setActionPending(false);
       }
     },
-    [isDemo],
+    [isDemo, machine.mixed_available, machine.mixed_start_endpoint],
   );
 
   const act = async (action: string) => {
@@ -429,7 +446,11 @@ function MixMindKiosk() {
           <IdleState
             onStart={start}
             disabled={actionPending || disconnected}
-            mixedAvailable={isDemo || machine.mixed_available !== false}
+            mixedAvailable={
+              isDemo ||
+              (machine.mixed_available === true &&
+                machine.mixed_start_endpoint === "/api/start/mixed")
+            }
             cup={machine.cup?.hint}
           />
         )}
