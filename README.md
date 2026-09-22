@@ -1,5 +1,32 @@
 # MixMind Voice Bar
 
+**The touchscreen on the front of the machine.** A 1024×600 kiosk that a guest
+taps once, talks to, and then watches pour their drink.
+
+It is deliberately dumb: it holds no logic about voices or recipes. It polls
+`/api/state` on the Pi and renders whatever state comes back — idle, listening,
+thinking, reveal, pouring, serving — so the machine's behaviour lives entirely
+in the backend and the screen can never disagree with the pumps.
+
+```
+  Pi backend ──▶ GET /api/state  ──▶  this UI  ──▶  POST /api/start, /api/reset
+   (server.py)      every 100 ms        renders
+```
+
+**Built to run offline.** No CDN, no web fonts, no analytics, no keys. System
+fonts and inline SVG only, because the machine has to work on a venue network
+that may not exist. It ships as static files served from localhost.
+
+| If you want to see... | Read |
+|---|---|
+| The whole kiosk screen | [`src/routes/index.tsx`](src/routes/index.tsx) — every state, the pour bars, the demo fallback |
+| How it gets onto the Pi | [`scripts/build-pi.sh`](scripts/build-pi.sh) — builds, snapshots `/` into `pi-ui/`, verifies every asset resolves |
+| The static build the Pi serves | [`pi-ui/`](pi-ui) |
+| The backend contract | [`voice_decipher_2`](https://github.com/MixMind-HackMIT-26/voice_decipher_2) |
+
+Try it without hardware: append `?demo=1` to preview every state with no pumps
+and no backend.
+
 ## Integrated kiosk modes
 
 The current UI offers **Quick Mix** (the existing one-pass workflow) and
@@ -16,6 +43,9 @@ failure shows reconnection, not a fake dispensing sequence.
 
 For local backend development, set `MIXMIND_API_URL=http://127.0.0.1:8090`
 before `npm run dev`; the Vite proxy forwards `/api` to that backend.
+
+<details>
+<summary><b>The original design brief</b> (historical — kept because the hard constraints still hold)</summary>
 
 Build a single-screen kiosk UI for "MixMind", a drink-mixing machine that
 
@@ -136,6 +166,8 @@ Dark background, one warm accent colour, bold and calm, like a premium
 bar menu. Smooth transitions between states. No emoji.
 
 This project was built with [Lovable](https://lovable.dev).
+
+</details>
 
 ## Build with Lovable
 
